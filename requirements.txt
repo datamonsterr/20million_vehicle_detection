@@ -2,3 +2,8 @@ ultralytics
 gdown
 torch
 torchvision
+supervision
+ensemble_boxes
+scikit-learn
+tensorflow
+keras
