@@ -4,6 +4,8 @@ import random
 import argparse
 import gdown
 
+import os
+
 def download_dataset_from_drive(id, data_path, desc):
     gdrive_url = f"https://drive.google.com/uc?id={id}"
 
@@ -22,19 +24,43 @@ def download_dataset_from_drive(id, data_path, desc):
 
     os.remove(output_path)
     print("Cleanup: Removed the downloaded zip file.")
+    
+def relabel_nighttime():
+    label_map = {4: 0, 5: 1, 6: 2, 7: 3}
+    dataset = "dataset/original/train/nighttime"
+    for file in os.listdir(dataset):
+        if file.endswith(".txt"):
+                file_path = os.path.join(dataset, file)
+                with open(file_path, 'r') as file:
+                    lines = file.readlines()
 
+                modified_lines = []
+                for line in lines:
+                    parts = line.strip().split()
+                    label = int(parts[0])
+                    # Thay thế nhãn nếu thuộc các nhãn 4-7
+                    if label in label_map:
+                        parts[0] = str(label_map[label])
+                    modified_lines.append(" ".join(parts))
 
-def yolo_yaml():
-    content = f"""path: .
+                # Ghi lại nội dung đã thay đổi vào file .txt
+                with open(file_path, 'w') as file:
+                    file.write("\n".join(modified_lines))
+
+    print("Labels have been successfully merged in all .txt files!")
+
+def yolo_yaml(path):
+    content = f"""path: ../{path}
 
 train: images/train
 val: images/val
 
 names:
-0: motorbike
-1: car
-2: bus
-3: container"""
+    0: motorbike
+    1: car
+    2: bus
+    3: container
+"""
     return content
 
 def restructure_to_yolo(daytime=True, nighttime=True, original_path="dataset/original/train"):
@@ -43,6 +69,8 @@ def restructure_to_yolo(daytime=True, nighttime=True, original_path="dataset/ori
 
     if daytime and nighttime:
         output_dir = os.path.join(base_output_dir, 'all')
+        dataset_paths.append(os.path.join(original_path, "daytime"))
+        dataset_paths.append(os.path.join(original_path, "nighttime"))
     elif daytime:
         output_dir = os.path.join(base_output_dir,'day')
         dataset_paths.append(os.path.join(original_path, "daytime"))
@@ -60,7 +88,7 @@ def restructure_to_yolo(daytime=True, nighttime=True, original_path="dataset/ori
     os.makedirs(train_lbl_dir, exist_ok=True)
     os.makedirs(val_lbl_dir, exist_ok=True)
     with open(os.path.join(output_dir, "config.yaml"), "w") as f:
-        f.write(yolo_yaml())
+        f.write(yolo_yaml(output_dir))
 
     train_ratio = 0.8
 
@@ -90,11 +118,11 @@ def restructure_to_yolo(daytime=True, nighttime=True, original_path="dataset/ori
                 shutil.copy(label_path, val_lbl_dir)  
 
 def main():
-    print("Downloading dataset ....")
-    download_dataset_from_drive("1SjMOqzzKDtmkqmiesIyDy2zkEN7xGjbE", "dataset/original/train", "training dataset")
-    download_dataset_from_drive("1BQvwhSoeDm-caCImtlbcAMzhI8MDsrCZ", "dataset/original/", "testing dataset")
-    print("Finished downloading dataset")
-
+    # print("Downloading dataset ....")
+    # download_dataset_from_drive("1SjMOqzzKDtmkqmiesIyDy2zkEN7xGjbE", "dataset/original/train", "training dataset")
+    # download_dataset_from_drive("1BQvwhSoeDm-caCImtlbcAMzhI8MDsrCZ", "dataset/original/", "testing dataset")
+    # print("Finished downloading dataset")
+    relabel_nighttime()
     print("Restructuring dataset to YOLO format ....")
     restructure_to_yolo(daytime=True, nighttime=True)
     restructure_to_yolo(daytime=True, nighttime=False)

@@ -3,6 +3,7 @@ import argparse
 import torch
 import numpy as np
 import random
+import os
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -20,7 +21,7 @@ def main():
 
     # Define command-line arguments
     parser.add_argument('--model_name', type=str, required=True, help="Name of yolo model")
-    parser.add_argument('--data_config', type=str, default="configs/vehicles_dataset_yolo.yaml", help="URL of the image for object detection")
+    parser.add_argument('--data_path', type=str, default="./dataset/yolo/all/config.yaml", help="URL of the image for object detection")
     parser.add_argument('--save_path', type=str, required=True, help="Directory to save the results")
     parser.add_argument('--batch_size', type=int, default=16, help="Set batch size")
     parser.add_argument('--freeze', type=int, default=None, help="Freeze from layer 1 to layer N")
@@ -30,10 +31,11 @@ def main():
 
     # Load the YOLO model
     model = YOLO(f"{args.model_name}.pt")
+    print(os.listdir("dataset/yolo/all"))
 
     # Set hyperparameters for fine-tuning
     model.train(
-        data=args.data_config,  # Path to your dataset
+        data=args.data_path,  # Path to your dataset
         epochs=30,               # Increase the number of epochs for better convergence
         imgsz=768,               # Increase image size for more details
         seed=SEED,
