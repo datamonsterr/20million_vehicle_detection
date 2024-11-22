@@ -118,10 +118,10 @@ def restructure_to_yolo(daytime=True, nighttime=True, original_path="dataset/ori
                 shutil.copy(label_path, val_lbl_dir)  
 
 def main():
-    # print("Downloading dataset ....")
-    # download_dataset_from_drive("1SjMOqzzKDtmkqmiesIyDy2zkEN7xGjbE", "dataset/original/train", "training dataset")
-    # download_dataset_from_drive("1BQvwhSoeDm-caCImtlbcAMzhI8MDsrCZ", "dataset/original/", "testing dataset")
-    # print("Finished downloading dataset")
+    print("Downloading dataset ....")
+    download_dataset_from_drive("1SjMOqzzKDtmkqmiesIyDy2zkEN7xGjbE", "dataset/original/train", "training dataset")
+    download_dataset_from_drive("1BQvwhSoeDm-caCImtlbcAMzhI8MDsrCZ", "dataset/original/", "testing dataset")
+    print("Finished downloading dataset")
     relabel_nighttime()
     print("Restructuring dataset to YOLO format ....")
     restructure_to_yolo(daytime=True, nighttime=True)
