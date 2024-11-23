@@ -1,14 +1,11 @@
 import argparse
 import os
-import pickle
 import random
 import torch
 import torchvision
-import cv2
 import numpy as np
-from PIL import Image
-from torch.utils.data import Dataset, random_split, ConcatDataset
-from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights
+from torch.utils.data import Dataset, ConcatDataset, DataLoader
+from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights, fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
 from tqdm import tqdm
 
 
@@ -120,38 +117,18 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch):
         train_loss_list.append(loss.item())
     return train_loss_list
 
-def evaluate(model, data_loader_test, device):
-    val_loss_list = []
-    tqdm_bar = tqdm(data_loader_test, total=len(data_loader_test))
-    for i, data in enumerate(tqdm_bar):
-        images, targets = data
-        images = list(image.to(device) for image in images)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-        with torch.no_grad():
-            losses = model(images, targets)
-        loss = sum(loss for loss in losses.values())
-        loss_val = loss.item()
-        val_loss_list.append(loss_val)
-        tqdm_bar.set_description(desc=f"Validation Loss: {loss:.4f}")
-    return val_loss_list
+def train(model, optimizer, lr_scheduler, data_loader, num_epochs, output_dir, filename):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    model.to(device)
 
-def train(model, optimizer, lr_scheduler, data_loader, device, num_epochs, output_dir, latest_checkpoint=None):
-    if latest_checkpoint:
-        checkpoint = torch.load(latest_checkpoint)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch']
-        loss_dict = checkpoint['loss_dict']
-    else:
-        start_epoch = 0
-        loss_dict = {'train_loss': [], 'valid_loss': []}
+    loss_dict = {'train_loss': [], 'valid_loss': []}
 
-    for epoch in range(start_epoch, start_epoch + num_epochs):
+    for epoch in range(0, num_epochs):
       print("----------Epoch {}----------".format(epoch+1))
       train_loss_list = train_one_epoch(model, optimizer, data_loader, device, epoch)
       loss_dict['train_loss'].extend(train_loss_list)
       lr_scheduler.step()
-      ckpt_file_name = f"{output_dir}/epoch_{epoch+1}_model.pth"
+      ckpt_file_name = f"{output_dir}/{filename}_e{epoch+1}.pth"
       torch.save({
         'epoch': epoch+1,
         'model_state_dict': model.state_dict(),
@@ -163,8 +140,8 @@ def train(model, optimizer, lr_scheduler, data_loader, device, num_epochs, outpu
 
 def main():
     SEED = 17 
-    
     classes = ['motorbike', 'car','bus', 'container']
+    NUM_CLASSES = len(classes) + 1 
 
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
@@ -174,13 +151,14 @@ def main():
     img_paths, annotations = load_train_data('dataset/original/train')
     img_width = 1280
     img_height = 720
-    
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default="all", help="all | day | night")
+    parser.add_argument("--v2", type=bool, default=False, help="fasterrcnn v1 or v2")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size")
     parser.add_argument("--num_workers", type=int, default=8, help="Number of workers for the data loader")
-    parser.add_argument("--output_dir", type=str, default="output/fasterrcnn", help="Output directory")
+    parser.add_argument("--output_dir", type=str, default="./checkpoint", help="Output directory")
     parser.add_argument("--latest_checkpoint", type=str, default=None, help="Path to the latest checkpoint")
-    parser.add_argument("--num_epochs", type=int, default=5, help="Number of epochs")
+    parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=0.005, help="Learning rate")
     parser.add_argument("--lr_momentum", type=float, default=0.9, help="Learning rate momentum")
     parser.add_argument("--lr_decay_rate", type=float, default=0.001, help="Learning rate decay rate")
@@ -199,10 +177,21 @@ def main():
     args = parser.parse_args()
     dataset_night = VehiclesDetectionDataset(img_paths['night'], annotations['night'], img_width, img_height)
     dataset_day = VehiclesDetectionDataset(img_paths['day'], annotations['day'], img_width, img_height)
-    dataset = ConcatDataset([dataset_night, dataset_day])
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers,shuffle=True, collate_fn=collate_fn)
-    model = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
-    NUM_CLASSES = len(classes) + 1 # add background class
+    dataset = None
+    if args.dataset == "day":
+        dataset = dataset_day
+    elif args.dataset == "night":
+        dataset = dataset_night
+    else:
+        dataset = ConcatDataset([dataset_day, dataset_night])
+    data_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers,shuffle=True, collate_fn=collate_fn)
+
+
+    if args.v2:
+        model = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
+    else:
+        model = fasterrcnn_resnet50_fpn(FasterRCNN_ResNet50_FPN_Weights.DEFAULT)
+
 
     model.backbone.zero_grad(True)
     for name, param in model.backbone.body.named_parameters():
@@ -217,13 +206,11 @@ def main():
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, NUM_CLASSES)
 
-    # Set model to training mode and move to device (GPU or CPU)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    model.to(device)
     optimizer = torch.optim.SGD([p for p in model.parameters() if p.requires_grad], lr=LR, momentum=LR_MOMENTUM, weight_decay=LR_DECAY_RATE)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_SCHED_STEP_SIZE,gamma=LR_SCHED_GAMMA)
+    print(model)
     
-    train(model, optimizer, lr_scheduler, data_loader, device, NUM_EPOCHS, output_dir=args.output_dir)
+    train(model, optimizer, lr_scheduler, data_loader, NUM_EPOCHS, output_dir=args.output_dir, filename=f"faster_rcnn_{args.dataset}_ep{NUM_EPOCHS}_lr{LR}")
     
 if __name__ == "__main__":
     main()

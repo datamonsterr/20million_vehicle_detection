@@ -3,7 +3,6 @@ import argparse
 import torch
 import numpy as np
 import random
-import os
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -16,33 +15,31 @@ def set_seed(seed):
 def main():
     SEED = 42
     set_seed(SEED)
-    # Initialize the parser
     parser = argparse.ArgumentParser(description="DETR model object detection script")
 
-    # Define command-line arguments
     parser.add_argument('--model_name', type=str, required=True, help="Name of yolo model")
-    parser.add_argument('--data_path', type=str, default="./dataset/yolo/all/config.yaml", help="URL of the image for object detection")
-    parser.add_argument('--save_path', type=str, required=True, help="Directory to save the results")
+    parser.add_argument('--epoch', type=int, default=60, help="Number of epochs")
+    parser.add_argument('--dataset', type=str, default="all", help="day | night | all")
     parser.add_argument('--batch_size', type=int, default=16, help="Set batch size")
     parser.add_argument('--freeze', type=int, default=None, help="Freeze from layer 1 to layer N")
+    parser.add_argument('--lr', type=float, default=0.01, help="Learning rate")
+    parser.add_argument('--momentum', type=float, default=0.937, help="Learning rate momentum")
 
-    # Parse the arguments
     args = parser.parse_args()
 
-    # Load the YOLO model
     model = YOLO(f"{args.model_name}.pt")
-    print(os.listdir("dataset/yolo/all"))
 
-    # Set hyperparameters for fine-tuning
     model.train(
-        data=args.data_path,  # Path to your dataset
-        epochs=30,               # Increase the number of epochs for better convergence
-        imgsz=768,               # Increase image size for more details
-        seed=SEED,
+        data=f"./dataset/yolo/{args.dataset}/config.yaml",  
+        epochs=args.epoch,              
+        imgsz=1280,               
         batch=args.batch_size,
         freeze=args.freeze,
+        seed=SEED,
+        lr0 = args.lr,
+        momentum = args.momentum,
     )
-    model.save(args.save_path)
+    model.save(f"./checkpoint/best_{args.model_name}_{args.dataset}_ep{args.epoch}_lr{args.lr}.pt")
 
 if __name__ == "__main__":
     main()
