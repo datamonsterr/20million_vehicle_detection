@@ -105,67 +105,34 @@ class TrafficDataset(Dataset):
 
 dataset_path = 'dataset/original'
 ptestpath = f'{dataset_path}/public test'
+zeroref_enhanced_path = "dataset/zeroref_enhanced_images"
+gamma_correction_path = "dataset/gamma_correction_images"
 
 img_paths = []
 
 for img_name in os.listdir(ptestpath):
     img_paths.append(os.path.join(ptestpath, img_name))
-filenames_day = []
-filenames_night = []
 
-for img_path in img_paths:
-    if 'cam_10' in img_path or 'src_1_frame' in img_path:
-        filenames_day.append(img_path)
-    else:
-        filenames_night.append(img_path)
-    
-day_img_paths = []
-night_img_paths = []
 
-for img_path in filenames_day:
-    day_img_paths.append(img_path)
+with open('./checkpoint/daynight_classifier.pkl', 'rb') as f:
+    daynight_classifier = pickle.load(f)
+    split_img_paths = daynight_classifier["checkpoint"]
 
-for img_path in filenames_night:
-    night_img_paths.append(img_path)
-    
-img_dark_night_paths = []
-img_night_paths = []
+day_fnames, night_fnames, dark_fnames, bright_fnames = split_img_paths
+a = [day_fnames, night_fnames, dark_fnames, bright_fnames]
+day_img_paths = [os.path.join(ptestpath, fname) for fname in day_fnames]
+night_img_paths = [os.path.join(gamma_correction_path, fname) for fname in night_fnames]
+dark_img_paths = [os.path.join(zeroref_enhanced_path, fname) for fname in dark_fnames]
+bright_img_paths = [os.path.join(zeroref_enhanced_path, fname) for fname in bright_fnames]
 
-with open("secret.pkl", "rb") as f:
-    a = pickle.load(f)
-    need_enhanced_image = a['need_enhanced_image']
-
-for filename_path in sorted(filenames_night):
-    if need_enhanced_image in os.path.basename(filename_path):
-        img_dark_night_path = os.path.join('dataset/enhanced_images', os.path.basename(filename_path))
-        img_dark_night_paths.append(img_dark_night_path)
-    else:
-        img_night_path = os.path.join('dataset/images', os.path.basename(filename_path))
-        img_night_paths.append(img_night_path)
-
-img_bright_night_paths = img_dark_night_paths[261:]
-img_dark_night_paths = img_dark_night_paths[:261]
-
-imgs_dark_night = []
-imgs_bright_night = []
-night_img_paths = []
-
-for img_path in img_dark_night_paths:
-    imgs_dark_night.append(img_path)
-
-for img_path in img_bright_night_paths:
-    imgs_bright_night.append(img_path)
-
-for img_path in img_night_paths:
-    night_img_paths.append(img_path)
 
 day_dataset = TrafficDataset(day_img_paths, trans)
 day_loader = DataLoader(day_dataset, batch_size=1, shuffle=False)
 night_dataset = TrafficDataset(night_img_paths, trans)
 night_loader = DataLoader(night_dataset, batch_size=1, shuffle=False)
-dark_night_dataset = TrafficDataset(imgs_dark_night, trans)
+dark_night_dataset = TrafficDataset(dark_img_paths, trans)
 dark_night_loader = DataLoader(dark_night_dataset, batch_size=1, shuffle=False)
-bright_night_dataset = TrafficDataset(imgs_bright_night, trans)
+bright_night_dataset = TrafficDataset(bright_img_paths, trans)
 bright_night_loader = DataLoader(bright_night_dataset, batch_size=1, shuffle=False)
 
 def inference_faster_rcnn(img, model, detection_threshold=0.0, nms_thresh=0.1):
@@ -348,7 +315,6 @@ def ensemble_predictions_nighttime(image, image_origin, detection_thr=0.0, iou_t
     return boxes_filter, scores_filter, labels_filter
 
 def ensemble_prediction_daytime(image_tensor, image_origin, detection_thr=0.0, iou_thr=0.5, skip_box_thr=0.0, weights=[1, 1, 1, 1, 1], conf_type='avg'):
-    image_origin_cvt = cv2.cvtColor(image_origin, cv2.COLOR_BGR2RGB)
     # Get predictions from each model
     boxes_faster_day, scores_faster_day, labels_faster_day = inference_faster_rcnn(image_tensor, faster_rcnn_daytime, detection_threshold=0.0)
     boxes_yolov10, scores_yolov10, labels_yolov10 = inference_yolo(image_origin, yolo11_daytime)
@@ -402,15 +368,20 @@ def insert_prediction(img_path, labels, boxes, scores, filepath):
 with open('./predict.txt', 'w') as f:
     pass
 
-# for i, image in tqdm(enumerate(night_loader)):
-#     image_origin = cv2.imread(os.path.join('dataset/images', os.path.basename(img_night_paths[i])))
-#     boxes, scores, labels = ensemble_predictions_nighttime(image, image_origin, weights=[3, 1, 1, 1, 1])
-#     boxes = convert_to_yolo(boxes)
-#     insert_prediction(img_night_paths[i], labels, boxes, scores, './predict.txt')
+for i, image in tqdm(enumerate(night_loader)):
+    if i == 10:
+        break
+    image = image.to(device)
+    image_origin = cv2.imread(night_img_paths[i])
+    boxes, scores, labels = ensemble_predictions_nighttime(image, image_origin, weights=[3, 1, 1, 1, 1])
+    boxes = convert_to_yolo(boxes)
+    insert_prediction(night_img_paths[i], labels, boxes, scores, './predict.txt')
 
 for i, image in tqdm(enumerate(dark_night_loader)):
+    if i == 10:
+        break
     image = image.to(device)
-    origin_image = cv2.imread(os.path.join('dataset/images', os.path.basename(img_dark_night_paths[i])))
+    origin_image = cv2.imread(os.path.join(gamma_correction_path, os.path.basename(dark_img_paths[i])))
     origin_image_cvt = cv2.cvtColor(origin_image, cv2.COLOR_BGR2RGB)
     origin_image_normed = trans(origin_image_cvt).unsqueeze(0)
     origin_image_normed = origin_image_normed.to(device)
@@ -437,37 +408,42 @@ for i, image in tqdm(enumerate(dark_night_loader)):
     )
 
     boxes = convert_ensemble_to_yolo(boxes)
-    insert_prediction(img_dark_night_paths[i], labels, boxes, scores, './predict.txt')
+    insert_prediction(dark_img_paths[i], labels, boxes, scores, './predict.txt')
 
-# for i, image in tqdm(enumerate(bright_night_loader)):
-#     image = image.to(device)
-#     image_origin = cv2.imread(os.path.join('dataset/images', os.path.basename(img_bright_night_paths[i])))
+for i, image in tqdm(enumerate(bright_night_loader)):
+    if i == 10:
+        break
+    image = image.to(device)
+    image_origin = cv2.imread(os.path.join(gamma_correction_path, os.path.basename(bright_img_paths[i])))
 
-#     boxes_faster_day, scores_faster_day, labels_faster_day = inference_faster_rcnn(image, faster_rcnn_daytime)
-#     boxes_faster_night, scores_faster_night, labels_faster_night = inference_faster_rcnn(image, faster_rcnn_nighttime)
-#     boxes_retina, scores_retina, labels_retina = inference_retinanet(image, retinanet_nighttime)
-#     boxes_yolo, scores_yolo, labels_yolo = inference_yolo(image_origin, yolov5_nighttime, detection_threshold=0.0)
+    boxes_faster_day, scores_faster_day, labels_faster_day = inference_faster_rcnn(image, faster_rcnn_daytime)
+    boxes_faster_night, scores_faster_night, labels_faster_night = inference_faster_rcnn(image, faster_rcnn_nighttime)
+    boxes_retina, scores_retina, labels_retina = inference_retinanet(image, retinanet_nighttime)
+    boxes_yolo, scores_yolo, labels_yolo = inference_yolo(image_origin, yolov5_nighttime, detection_threshold=0.0)
 
-#     # Convert to coordinate of ensemble
-#     boxes_faster_day = convert_coord_ensemble(boxes_faster_day)
-#     boxes_faster_night = convert_coord_ensemble(boxes_faster_night)
-#     boxes_retina = convert_coord_ensemble(boxes_retina)
-#     boxes_yolo = convert_coord_ensemble(boxes_yolo)
+    # Convert to coordinate of ensemble
+    boxes_faster_day = convert_coord_ensemble(boxes_faster_day)
+    boxes_faster_night = convert_coord_ensemble(boxes_faster_night)
+    boxes_retina = convert_coord_ensemble(boxes_retina)
+    boxes_yolo = convert_coord_ensemble(boxes_yolo)
 
-#     boxes_list = [boxes_faster_night, boxes_retina, boxes_yolo, boxes_faster_day]
-#     scores_list = [scores_faster_night, scores_retina, scores_yolo, scores_faster_day]
-#     labels_list = [labels_faster_night, labels_retina, labels_yolo, labels_faster_day]
+    boxes_list = [boxes_faster_night, boxes_retina, boxes_yolo, boxes_faster_day]
+    scores_list = [scores_faster_night, scores_retina, scores_yolo, scores_faster_day]
+    labels_list = [labels_faster_night, labels_retina, labels_yolo, labels_faster_day]
 
-#     # Perform WBF
-#     boxes, scores, labels = weighted_boxes_fusion(
-#         boxes_list, scores_list, labels_list, weights=[1.2, 0.8, 0.8, 1.2], iou_thr=0.5, skip_box_thr=0.0, conf_type='avg'
-#     )
+    # Perform WBF
+    boxes, scores, labels = weighted_boxes_fusion(
+        boxes_list, scores_list, labels_list, weights=[1.2, 0.8, 0.8, 1.2], iou_thr=0.5, skip_box_thr=0.0, conf_type='avg'
+    )
 
-#     boxes = convert_ensemble_to_yolo(boxes)
-#     insert_prediction(img_bright_night_paths[i], labels, boxes, scores, './predict.txt')
+    boxes = convert_ensemble_to_yolo(boxes)
+    insert_prediction(bright_img_paths[i], labels, boxes, scores, './predict.txt')
 
-# for i, image in tqdm(enumerate(day_loader)):
-#     image = image.to(device)
-#     boxes, scores, labels = ensemble_prediction_daytime(image, day_img_paths[i],detection_thr=0.0, weights=[1, 1, 1, 1, 1])
-#     boxes = convert_to_yolo(boxes)
-#     insert_prediction(filenames_day[i], labels, boxes, scores, './predict.txt')
+for i, image in tqdm(enumerate(day_loader)):
+    if i == 10:
+        break
+    image = image.to(device)
+    image_origin = cv2.imread(day_img_paths[i])
+    boxes, scores, labels = ensemble_prediction_daytime(image, image_origin,detection_thr=0.0, weights=[1, 1, 1, 1, 1])
+    boxes = convert_to_yolo(boxes)
+    insert_prediction(day_img_paths[i], labels, boxes, scores, './predict.txt')

@@ -146,7 +146,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="RetinaNet model object detection script")
     parser.add_argument('--batch_size', type=int, default=8, help="Set batch size")
-    parser.add_argument('--num_worker', type=int, default=4, help="Set number of workers")
+    parser.add_argument('--num_workers', type=int, default=4, help="Set number of workers")
     parser.add_argument('--epoch', type=int, default=100, help="Set number of workers")
     parser.add_argument('--lr', type=float, default=0.01, help="Set number of workers")
     args = parser.parse_args()
@@ -154,7 +154,7 @@ def main():
     X_train = img_paths
     Y_train = labels_data
     dataset = TrafficDataset(X_train, Y_train, trans=trans)
-    train_loader = DataLoader(dataset=dataset, batch_size=args.batch_size, num_workers=args.num_worker, shuffle=True, collate_fn=collate_fn)
+    train_loader = DataLoader(dataset=dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True, collate_fn=collate_fn)
     model = torchvision.models.detection.retinanet_resnet50_fpn(weights='COCO_V1', progress=True)
 
     # Modify the number of classes (including background)

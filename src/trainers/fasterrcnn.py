@@ -158,7 +158,7 @@ def main():
     parser.add_argument("--num_workers", type=int, default=8, help="Number of workers for the data loader")
     parser.add_argument("--output_dir", type=str, default="./checkpoint", help="Output directory")
     parser.add_argument("--latest_checkpoint", type=str, default=None, help="Path to the latest checkpoint")
-    parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")
+    parser.add_argument("--epoch", type=int, default=10, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=0.005, help="Learning rate")
     parser.add_argument("--lr_momentum", type=float, default=0.9, help="Learning rate momentum")
     parser.add_argument("--lr_decay_rate", type=float, default=0.001, help="Learning rate decay rate")
@@ -172,7 +172,7 @@ def main():
     LR_DECAY_RATE = args.lr_decay_rate
     LR_SCHED_STEP_SIZE = args.lr_sched_step_size
     LR_SCHED_GAMMA = args.lr_sched_gamma
-    NUM_EPOCHS = args.num_epochs
+    NUM_EPOCHS = args.epoch
 
     args = parser.parse_args()
     dataset_night = VehiclesDetectionDataset(img_paths['night'], annotations['night'], img_width, img_height)

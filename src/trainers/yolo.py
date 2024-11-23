@@ -17,7 +17,7 @@ def main():
     set_seed(SEED)
     parser = argparse.ArgumentParser(description="DETR model object detection script")
 
-    parser.add_argument('--model_name', type=str, required=True, help="Name of yolo model")
+    parser.add_argument('--model', type=str, required=True, help="Name of yolo model")
     parser.add_argument('--epoch', type=int, default=60, help="Number of epochs")
     parser.add_argument('--dataset', type=str, default="all", help="day | night | all")
     parser.add_argument('--batch_size', type=int, default=16, help="Set batch size")
@@ -27,7 +27,7 @@ def main():
 
     args = parser.parse_args()
 
-    model = YOLO(f"{args.model_name}.pt")
+    model = YOLO(f"{args.model}.pt")
 
     model.train(
         data=f"./dataset/yolo/{args.dataset}/config.yaml",  
@@ -39,7 +39,7 @@ def main():
         lr0 = args.lr,
         momentum = args.momentum,
     )
-    model.save(f"./checkpoint/best_{args.model_name}_{args.dataset}_ep{args.epoch}.pt")
+    model.save(f"./checkpoint/best_{args.model}_{args.dataset}_ep{args.epoch}.pt")
 
 if __name__ == "__main__":
     main()
