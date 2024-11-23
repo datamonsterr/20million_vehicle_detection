@@ -23,11 +23,10 @@ from ultralytics import YOLO
 from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights, fasterrcnn_resnet50_fpn, FasterRCNN_ResNet50_FPN_Weights
 from torchvision.models.detection.retinanet import RetinaNetClassificationHead
 
-folder_path = os.getcwd()
-print(folder_path)
+folder_path = os.path.join(os.getcwd(), 'dataset')
 sys.path.append(folder_path)
 
-folder_name = 'public_test'
+folder_name = 'original/public test'
 
 img_paths = []
 for img_name in os.listdir(os.path.join(folder_path, folder_name)):
@@ -178,8 +177,13 @@ for filepath in tqdm(filenames_night):
     
 img_dark_night_paths = []
 img_night_paths = []
+
+with open("secret.pkl", "rb") as f:
+    a = pickle.load(f)
+    need_enhanced_image = a['need_enhanced_image']
+
 for filename_path in sorted(filenames_night):
-    if 'src_2_frame' in os.path.basename(filename_path):
+    if need_enhanced_image in os.path.basename(filename_path):
         img_dark_night_path = os.path.join(folder_path, 'enhanced_images', os.path.basename(filename_path))
         img_dark_night_paths.append(img_dark_night_path)
     else:
@@ -205,7 +209,7 @@ for img_night_path in tqdm(img_night_paths):
     img = cv2.imread(img_night_path)
     imgs_night.append(img)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 # RetinaNet
 retinanet_nighttime = torchvision.models.detection.retinanet_resnet50_fpn(weights='COCO_V1', progress=True)
@@ -235,39 +239,12 @@ faster_rcnn_nighttime.roi_heads.box_predictor = torchvision.models.detection.fas
 checkpoint = torch.load('./checkpoint/faster_rcnn_night.pth', map_location='cpu', weights_only=True)
 faster_rcnn_nighttime.load_state_dict(checkpoint['model_state_dict'])
 
-# # Classified motobike
-# faster_rcnn_motorbike = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
-# in_features = faster_rcnn_motorbike.roi_heads.box_predictor.cls_score.in_features
-# faster_rcnn_motorbike.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, 2)
-# checkpoint = torch.load('./checkpoint/epoch_10_model.pth')
-# faster_rcnn_motorbike.load_state_dict(checkpoint['model_state_dict'])
-
-# # Classified car
-# faster_rcnn_car = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
-# in_features = faster_rcnn_car.roi_heads.box_predictor.cls_score.in_features
-# faster_rcnn_car.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, 2)
-# checkpoint = torch.load('./checkpoint/epoch_7_model.pth')
-# faster_rcnn_car.load_state_dict(checkpoint['model_state_dict'])
-
-# Classified motorbike daytime
-faster_rcnn_motorbike_day = fasterrcnn_resnet50_fpn_v2(weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT)
-in_features = faster_rcnn_motorbike_day.roi_heads.box_predictor.cls_score.in_features
-faster_rcnn_motorbike_day.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, 2)
-checkpoint = torch.load('./checkpoint/epoch_9_model.pth')
-faster_rcnn_motorbike_day.load_state_dict(checkpoint['model_state_dict'])
-
 yolov10_daytime = YOLO('./checkpoint/bestYOLOv11x45_50e_lr=0.0015.pt')
-
 yolov10_nighttime = YOLO('./checkpoint/bestYOLOv10x50e.pt')
-
 yolov10_daytime_ver2 = YOLO('./checkpoint/bestYOLOv10x_daytime_50.pt')
-
 yolov8_daytime = YOLO('./checkpoint/bestYOLOv8x50edaytime.pt')
-
 yolov8_nighttime = YOLO('./checkpoint/bestYOLOv8x_nighttime_6_100_batch_8.pt')
-
 yolov5_nighttime = YOLO('./checkpoint/bestYOLOv5x6u_nighttime.pt')
-
 yolov5_daytime = YOLO('./checkpoint/bestYOLOv5x6u_daytime_58_100.pt')
 
 faster_rcnn_daytime.eval()
