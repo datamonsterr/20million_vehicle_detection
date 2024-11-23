@@ -39,7 +39,7 @@ def main():
         lr0 = args.lr,
         momentum = args.momentum,
     )
-    model.save(f"./checkpoint/best_{args.model_name}_{args.dataset}_ep{args.epoch}_lr{args.lr}.pt")
+    model.save(f"./checkpoint/best_{args.model_name}_{args.dataset}_ep{args.epoch}.pt")
 
 if __name__ == "__main__":
     main()

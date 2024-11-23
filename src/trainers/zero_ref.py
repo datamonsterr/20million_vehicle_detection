@@ -13,7 +13,7 @@ from keras import layers, losses, optimizers, callbacks
 import cv2
 AUTOTUNE = tf.data.AUTOTUNE
 
-trainpath = f""
+trainpath = f"dataset/original/train/nighttime"
 
 img_paths = []
 for img_path in os.listdir(f"{trainpath}"):

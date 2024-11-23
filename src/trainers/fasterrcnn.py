@@ -208,7 +208,6 @@ def main():
 
     optimizer = torch.optim.SGD([p for p in model.parameters() if p.requires_grad], lr=LR, momentum=LR_MOMENTUM, weight_decay=LR_DECAY_RATE)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_SCHED_STEP_SIZE,gamma=LR_SCHED_GAMMA)
-    print(model)
     
     train(model, optimizer, lr_scheduler, data_loader, NUM_EPOCHS, output_dir=args.output_dir, filename=f"faster_rcnn_{args.dataset}_ep{NUM_EPOCHS}_lr{LR}")
     
